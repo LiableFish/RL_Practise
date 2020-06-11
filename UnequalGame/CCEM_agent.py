@@ -26,7 +26,7 @@ class CCEMAgent(torch.nn.Module):
                  tau=1e-2, learning_rate=1e-2, n_learning_per_fit=16):
         super().__init__()
         self.action_max = np.abs(action_max)
-        self.reward_param = reward_param  # equal to 1 if agent want to maximize reward otherwise -1
+        self.reward_param = reward_param  # equal to 1 if agent wants to maximize reward otherwise -1
         self.percentile_param = percentile_param
         self.noise_decrease = noise_decrease
         self.noise_threshold = 1
@@ -36,16 +36,17 @@ class CCEMAgent(torch.nn.Module):
         self.network = Network(state_shape, action_shape)
         self.optimizer = torch.optim.Adam(params=self.network.parameters(), lr=learning_rate)
 
-    def get_action(self, state):
+    def get_action(self, state, test=False):
         state = torch.FloatTensor(state)
-        predicted_action = self.network(state).detach().numpy()
-        noise = self.noise_threshold * np.random.uniform(low=-1, high=1)
-        action = np.clip(predicted_action + noise, -self.action_max, self.action_max)
-        return action
+        predicted_action = self.network(state).detach().numpy() * self.action_max
+        if not test:
+            noise = self.noise_threshold * np.random.uniform(low=-self.action_max, high=self.action_max)
+            predicted_action = np.clip(predicted_action + noise, -self.action_max, self.action_max)
+        return predicted_action
 
-    def get_elite_states_and_actions(self, sessions, prefix):
+    def get_elite_states_and_actions(self, sessions):
         """
-          Select sessions with the most reward
+          Select sessions with the most or least reward
           by percentile
         """
         total_rewards = [session['total_reward'] for session in sessions]
@@ -56,7 +57,7 @@ class CCEMAgent(torch.nn.Module):
         for session in sessions:
             if self.reward_param * (session['total_reward'] - reward_threshold) > 0:
                 elite_states.extend(session['states'])
-                elite_actions.extend(session[f'{prefix}actions'])
+                elite_actions.extend(session[f'{self}actions'])
 
         return torch.FloatTensor(elite_states), torch.FloatTensor(elite_actions)
 
@@ -67,15 +68,15 @@ class CCEMAgent(torch.nn.Module):
         self.optimizer.step()
 
         for new_parameter, old_parameter in zip(self.network.parameters(), old_network.parameters()):
-            new_parameter.data.copy_((1 - self.tau) * new_parameter + self.tau * old_parameter)
+            new_parameter.data.copy_(self.tau * new_parameter + (1 - self.tau) * old_parameter)
 
         return None
 
-    def fit(self, sessions, prefix=''):
-        elite_states, elite_actions = self.get_elite_states_and_actions(sessions, prefix=prefix)
+    def fit(self, sessions):
+        elite_states, elite_actions = self.get_elite_states_and_actions(sessions)
 
         for _ in range(self.n_learning_per_fit):
-            predicted_action = self.network(elite_states)
+            predicted_action = self.network(elite_states) * self.action_max
             loss = torch.mean((predicted_action - elite_actions) ** 2)
             self.learn_network(loss)
 
@@ -83,3 +84,6 @@ class CCEMAgent(torch.nn.Module):
             self.noise_threshold *= self.noise_decrease
 
         return None
+
+    def __str__(self):
+        return 'u_' if self.reward_param == -1 else 'v_'
