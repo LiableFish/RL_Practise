@@ -28,6 +28,12 @@ def generate_session(u_agent, v_agent, env, test=False):
             'total_reward': total_reward}
 
 
+def test_agent(u_agent, env, n_epochs, n_sessions, epsilon):
+    v_agent = CCEMAgent((2,), (1,), percentile_param=70, action_max=env.v_action_max, reward_param=1)
+    _, rewards = fit_agents(u_agent, v_agent, env, n_epochs, n_sessions, epsilon, test=True)
+    return rewards
+
+
 def fit_epoch(u_agent, v_agent, env, n_sessions, test):
     sessions = [generate_session(u_agent, v_agent, env, test=test) for _ in range(n_sessions)]
     mean_reward = np.mean([session['total_reward'] for session in sessions])
@@ -37,22 +43,32 @@ def fit_epoch(u_agent, v_agent, env, n_sessions, test):
     return mean_reward
 
 
-def fit_agents(u_agent, v_agent, env, n_epochs, n_sessions, epsilon, test=False):
+def fit_agents(u_agent, v_agent, env, n_epochs, n_sessions,
+               epsilon, test=False, n_iter_debug=0):
     last_mean_reward = 0
     mean_rewards = []
+    epoch = 0
 
-    for epoch in range(n_epochs):
+    while epoch < n_epochs:
+
+        if n_iter_debug and epoch and epoch % n_iter_debug == 0:
+            print('\n{:-^50}\n'.format('TEST BEGIN'))
+            test_agent(u_agent, env, n_epochs=20, n_sessions=n_sessions, epsilon=epsilon)
+            print('\n{:-^50}\n'.format('TEST END'))
+
         mean_reward = fit_epoch(u_agent, v_agent, env, n_sessions, test)
         mean_rewards.append(mean_reward)
         print(f'epoch: {epoch}, mean reward: {mean_reward}')
         if np.abs(last_mean_reward - mean_reward) < epsilon:
             break
         last_mean_reward = mean_reward
+        epoch += 1
 
     return u_agent, np.array(mean_rewards)
 
 
-def fit_agents_one_by_one(u_agent, v_agent, env, n_epochs, n_sessions, n_iter_for_fit, epsilon):
+def fit_agents_one_by_one(u_agent, v_agent, env, n_epochs, n_sessions,\
+                          n_iter_for_fit, epsilon, n_iter_debug=0):
     last_mean_reward = 0
     mean_rewards = []
     fit_agent = u_agent
@@ -63,6 +79,11 @@ def fit_agents_one_by_one(u_agent, v_agent, env, n_epochs, n_sessions, n_iter_fo
     while not stop and epoch < n_epochs:
 
         for _ in range(n_iter_for_fit):
+            if n_iter_debug and epoch and epoch % n_iter_debug == 0:
+                print('\n{:-^50}\n'.format('TEST BEGIN'))
+                test_agent(u_agent, env, n_epochs=20, n_sessions=n_sessions, epsilon=epsilon)
+                print('\n{:-^50}\n'.format('TEST END'))
+
             mean_reward = fit_epoch(wait_agent, fit_agent, env, n_sessions, test=True)
             mean_rewards.append(mean_reward)
             print(f'epoch: {epoch}, current agent: {fit_agent}, mean reward: {mean_reward}')
@@ -71,6 +92,8 @@ def fit_agents_one_by_one(u_agent, v_agent, env, n_epochs, n_sessions, n_iter_fo
                 break
             last_mean_reward = mean_reward
             epoch += 1
+            if epoch >= n_epochs:
+                break
 
         print('\n')
         wait_agent, fit_agent = fit_agent, wait_agent
@@ -92,7 +115,7 @@ def main():
 
     u_fit_agent_one_by_one, mean_rewards_one_by_one = \
         fit_agents_one_by_one(u_agent_one_by_one, v_agent_one_by_one, env,
-                              n_epochs=10, n_sessions=5, n_iter_for_fit=2, epsilon=1e-6)
+                              n_epochs=10, n_sessions=5, n_iter_for_fit=2, epsilon=1e-6, n_iter_debug=3)
 
 
 if __name__ == '__main__':
