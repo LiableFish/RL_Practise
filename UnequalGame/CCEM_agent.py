@@ -33,7 +33,7 @@ class CCEMAgent(torch.nn.Module):
     """Continuous cross-entropy method agent implementation"""
 
     def __init__(self, state_shape, action_shape, action_max, reward_param=1, percentile_param=70, noise_decrease=0.98,
-                 tau=1e-2, learning_rate=1e-2, n_learning_per_fit=16):
+                 tau=1e-2, learning_rate=1e-2, n_learning_per_fit=16, mini_batch_size=200):
         """Create new agent
         :param state_shape: environment's state shape
         :param action_shape: agent's action shape
@@ -44,6 +44,7 @@ class CCEMAgent(torch.nn.Module):
         :param tau: network weights updating rate
         :param learning_rate: learning rate for gradient descent method
         :param n_learning_per_fit: number of network updating weights iterations per fit
+        :param mini_batch_size: count of elements to sample to mini-batch
         """
         super().__init__()
         self.action_max = np.abs(action_max)
@@ -54,6 +55,7 @@ class CCEMAgent(torch.nn.Module):
         self.min_noise_threshold = 0.1
         self.tau = tau
         self.n_learning_per_fit = n_learning_per_fit
+        self.mini_batch_size = mini_batch_size
         self.network = Network(state_shape, action_shape)
         self.optimizer = torch.optim.Adam(params=self.network.parameters(), lr=learning_rate)
 
@@ -103,15 +105,19 @@ class CCEMAgent(torch.nn.Module):
         return None
 
     def fit(self, sessions):
-        """Fitting process
+        """Fitting process using mini-batches
         :param sessions: sessions to fit on
         :return: None
         """
         elite_states, elite_actions = self.get_elite_states_and_actions(sessions)
 
         for _ in range(self.n_learning_per_fit):
-            predicted_action = self.network(elite_states) * self.action_max
-            loss = torch.mean((predicted_action - elite_actions) ** 2)
+            mini_batch_idxs = np.random.choice(range(elite_states.shape[0]), size=self.mini_batch_size)
+            mini_batch_states = elite_states[mini_batch_idxs]
+            mini_batch_actions = elite_actions[mini_batch_idxs]
+
+            predicted_action = self.network(mini_batch_states) * self.action_max
+            loss = torch.mean((predicted_action - mini_batch_actions) ** 2)
             self.learn_network(loss)
 
         if self.noise_threshold > self.min_noise_threshold:

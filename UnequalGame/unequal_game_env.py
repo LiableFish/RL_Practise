@@ -4,7 +4,7 @@ import numpy as np
 class UnequalGame:
     """Unequal game environment implementation for RL practise"""
 
-    def __init__(self, initial_x=1, dt=0.005, terminal_time=2, u_action_max=2, v_action_max=1):
+    def __init__(self, initial_x=1, dt=0.02, terminal_time=2, u_action_max=2, v_action_max=1):
         """Create an environment
         :param initial_x: starting point for u_agent
         :param dt: time rate
