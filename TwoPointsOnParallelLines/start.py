@@ -1,8 +1,7 @@
-from two_points_on_parallel_lines_env import TwoPointsOnParallelLines
-import numpy as np
+from TwoPointsOnParallelLines.two_points_on_parallel_lines_env import TwoPointsOnParallelLines
 import matplotlib.pyplot as plt
-from optimal_agents import OptimalUAgent, OptimalVAgent
-from other_agents import SinCosUAgent, NormUAgent, OptimalConstantCounterVAgent, ConstantVAgent, SinVAgent
+from TwoPointsOnParallelLines.optimal_agents import OptimalUAgent, OptimalVAgent
+from TwoPointsOnParallelLines.other_agents import SinCosUAgent, NormUAgent, OptimalConstantCounterVAgent, ConstantVAgent, SinVAgent
 
 
 env = TwoPointsOnParallelLines()
